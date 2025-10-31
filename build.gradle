@@ -1,0 +1,104 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            name = "forge"
+            url = "https://maven.minecraftforge.net/"
+        }
+        maven {
+            name = "sonatype"
+            url = "https://oss.sonatype.org/content/repositories/snapshots/"
+        }
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:1.0-SNAPSHOT'
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = "https://libraries.minecraft.net/"
+    }
+    maven {
+        url = "https://maven.minecraftforge.net/"
+    }
+}
+
+apply plugin: 'forge'
+
+configurations.all {
+    resolutionStrategy {
+        eachDependency { DependencyResolveDetails details ->
+            if (details.requested.group == 'net.sourceforge.argo' && details.requested.name == 'argo') {
+                details.useTarget 'argo:argo:2.25_fixed'
+            }
+        }
+    }
+}
+
+task downloadArgo {
+    def argoFile = file("${gradle.gradleUserHomeDir}/caches/modules-2/files-2.1/argo/argo/2.25_fixed/argo-2.25_fixed.jar")
+    outputs.file argoFile
+    doLast {
+        if (!argoFile.exists()) {
+            argoFile.parentFile.mkdirs()
+            new URL("https://libraries.minecraft.net/argo/argo/2.25_fixed/argo-2.25_fixed.jar").withInputStream { i ->
+                argoFile.withOutputStream { it << i }
+            }
+        }
+    }
+}
+
+tasks.compileJava.dependsOn downloadArgo
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+version = "1.0.0"
+group = "com.example.examplemod"
+archivesBaseName = "ExampleMod"
+
+minecraft {
+	version = "1.6.4-9.11.1.964"
+	
+	replace '@VERSION@', project.version
+	replaceIn 'ExampleMod.java'
+}
+
+task downloadMinecraft {
+	def mcVersion = "1.6.4"
+	def clientFile = file("${gradle.gradleUserHomeDir}/caches/minecraft/net/minecraft/minecraft/${mcVersion}/minecraft-${mcVersion}.jar")
+	def serverFile = file("${gradle.gradleUserHomeDir}/caches/minecraft/net/minecraft/minecraft_server/${mcVersion}/minecraft_server-${mcVersion}.jar")
+	outputs.files clientFile, serverFile
+	doLast {
+		if (!clientFile.exists()) {
+			clientFile.parentFile.mkdirs()
+			new URL("https://launcher.mojang.com/v1/objects/1703704407101cf72bd88e68579e3696ce733ecd/client.jar").withInputStream { i ->
+				clientFile.withOutputStream { it << i }
+			}
+		}
+		if (!serverFile.exists()) {
+			serverFile.parentFile.mkdirs()
+			new URL("https://launcher.mojang.com/v1/objects/050f93c1f3fe9e2052398f7bd6aca10c63d64a87/server.jar").withInputStream { i ->
+				serverFile.withOutputStream { it << i }
+			}
+		}
+	}
+}
+
+tasks.downloadClient.dependsOn downloadMinecraft
+tasks.downloadClient.onlyIf { false }
+tasks.downloadServer.dependsOn downloadMinecraft
+tasks.downloadServer.onlyIf { false }
+
+jar
+{
+
+}
+
+processResources
+{
+    from 'LICENSE.txt'
+}

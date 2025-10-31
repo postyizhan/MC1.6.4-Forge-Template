@@ -1,0 +1,49 @@
+# Gradle
+.gradle/
+build/
+out/
+bin/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+
+# Eclipse
+eclipse/
+.metadata/
+
+# Minecraft
+run/
+logs/
+crash-reports/
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.bak
+*.tmp
+*~
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# Config
+config/*.cfg
+
+# 保留特定的jar文件
+!gradle/wrapper/gradle-wrapper.jar
+!libs/*.jar
+
+# Build artifacts
+*.log

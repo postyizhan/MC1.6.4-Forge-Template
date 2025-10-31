@@ -1,0 +1,17 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Java sources
+*.java text diff=java
+*.gradle text diff=java
+*.properties text
+
+# These files are text and should be normalized (convert crlf => lf)
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# These files are binary and should be left untouched
+*.jar binary
+*.class binary
+*.png binary
+*.jpg binary
