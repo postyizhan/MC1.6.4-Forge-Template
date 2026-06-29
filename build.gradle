@@ -1,47 +1,50 @@
-buildscript {
-    repositories {
-        mavenCentral()
-        maven {
-            name = "forge"
-            url = "https://maven.minecraftforge.net/"
-        }
-        maven {
-            name = "sonatype"
-            url = "https://oss.sonatype.org/content/repositories/snapshots/"
-        }
-        maven { url "https://maven.fabricmc.net" }
-        maven { url "https://repo.sleeping.town" }
-    }
-    dependencies {
-        classpath "agency.highlysuspect:voldeloom:2.4-SNAPSHOT"
-    }
-}
 plugins {
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'java'
+    id 'net.minecraftforge.gradle' version "7.0.28"
+    id("net.minecraftforge.renamer") version "1.1.2"
 }
 
-apply plugin: 'agency.highlysuspect.voldeloom'
-
-sourceCompatibility = '1.7'
-targetCompatibility = '1.7'
+java.toolchain.languageVersion = JavaLanguageVersion.of(8)
 
 tasks.withType(JavaCompile) {
+    options.fork = true
     options.encoding = 'UTF-8'
+    options.compilerArgs += ['-source', '1.6', '-target', '1.6']
 }
 
 version = "1.0.0"
 group = "com.example.examplemod"
-archivesBaseName = "Example_mod"
+base.archivesName = "Example_mod"
 
-configurations {
-    shade
-    implementation.extendsFrom shade
+repositories {
+    mavenCentral()
+    minecraft.mavenizer(it)
+    maven fg.forgeMaven
+    maven fg.minecraftLibsMaven
+    flatDir(
+            dir : 'libs'
+    )
+}
+
+minecraft {
+    mappings channel: 'snapshot', version: '20130918-1.6.3'
+
+    runs {
+        register('client') {
+            workingDir = file('runs/main/client/')
+            environment.put("tweakClass", "cpw.mods.fml.common.launcher.FMLTweaker")
+            jvmArgs "-Dfml.ignoreInvalidMinecraftCertificates=true"
+        }
+        register('server') {
+            workingDir = file('runs/main/server/')
+            environment.put("tweakClass", "cpw.mods.fml.common.launcher.FMLTweaker")
+            jvmArgs "-Dfml.ignoreInvalidMinecraftCertificates=true"
+        }
+    }
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:1.6.4"
-    forge "net.minecraftforge:forge:1.6.4-9.11.1.1345:universal"
-    mappings "net.minecraftforge:forge:1.6.4-9.11.1.1345:src@zip"
+    implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
 }
 
 processResources {
@@ -58,21 +61,10 @@ processResources {
     }
 }
 
-jar {
-    configurations.shade.each { dep ->
-        from(project.zipTree(dep)) {
-            exclude 'META-INF', 'META-INF/**'
-        }
-    }
-    classifier = 'universal'
-}
+renamer.mappings.from minecraft.dependency.toSrgFile
 
-task deobfJar(type: Jar) {
-    from sourceSets.main.output
-    configurations.shade.each { dep ->
-        from(project.zipTree(dep)) {
-            exclude 'META-INF', 'META-INF/**'
-        }
-    }
-    classifier = 'dev'
+renamer.classes(tasks.named('jar', Jar)) {
+    map.from minecraft.dependency.toSrgFile
+
+    archiveClassifier = 'srg'
 }
