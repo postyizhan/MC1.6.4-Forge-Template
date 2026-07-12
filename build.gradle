@@ -9,8 +9,16 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(8)
 tasks.withType(JavaCompile) {
     options.fork = true
     options.encoding = 'UTF-8'
+    // Java 7 是硬上限:1.6.4 FML 内置 ASM 4.1 只能解析 class 版本 ≤51,Java 8 字节码(52)
+    // 会让 FML 注解扫描抛 IllegalArgumentException 并丢弃整个 mod(dev 与生产皆然)。
+    // 可保持 1.6 或提到 1.7,但绝不可到 1.8。
     options.compilerArgs += ['-source', '1.6', '-target', '1.6']
 }
+
+// dev 运行时 FML 把 @Mod 类所在目录(build/classes/java/main)当作 mod 容器与资源包根;
+// Gradle 默认把资源放 build/resources/main,会导致游戏内 mod 贴图紫黑、语言键不翻译。
+// 让 processResources 直接输出到 classes 目录;sourceSets.main.output 去重,jar 打包不受影响。
+sourceSets.main.output.resourcesDir = file('build/classes/java/main')
 
 version = "1.0.0"
 group = "com.example.examplemod"
@@ -45,6 +53,55 @@ minecraft {
 
 dependencies {
     implementation minecraft.dependency("net.minecraftforge:forge:${minecraft_version}-${forge_version}")
+}
+
+// 下载 1.6.4 的 legacy 布局游戏资产(语言文件/音效/字体)。
+// 1.6.4 的非英语语言文件与音效不在客户端 jar 里;dev 运行入口(slime-launcher)把资产
+// 目录固定解析为系统默认 .minecraft/assets(既不读工作目录,也无法用环境变量覆盖,已实测),
+// 因此直接下载到该目录。music/records/streaming 体积大且非必需,跳过。
+tasks.register('downloadGameAssets') {
+    // 与 dev 运行时 slime-launcher 解析的 {assets_root} 一致:APPDATA/.minecraft/assets
+    def appData = System.getenv('APPDATA') ?: "${System.getProperty('user.home')}/.minecraft"
+    def assetsDir = System.getenv('APPDATA') ? file("${appData}/.minecraft/assets") : file("${appData}/assets")
+    // 1.6.4 version.json 中 hash 固定的 legacy 资产索引
+    def indexUrl = 'https://launchermeta.mojang.com/v1/packages/770572e819335b6c0a053f8378ad88eda189fc14/legacy.json'
+    def skipPrefixes = ['music/', 'records/', 'streaming/']
+    outputs.dir(assetsDir)
+    doLast {
+        def index = new groovy.json.JsonSlurper().parse(new URL(indexUrl))
+        def wanted = index.objects.findAll { path, obj ->
+            !skipPrefixes.any { path.startsWith(it) }
+        }
+        def pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+        def downloaded = new java.util.concurrent.atomic.AtomicInteger()
+        def failed = java.util.concurrent.ConcurrentHashMap.newKeySet()
+        try {
+            def futures = wanted.collect { path, obj ->
+                pool.submit({
+                    def target = new File(assetsDir, path)
+                    if (target.isFile() && target.length() == (obj.size as long))
+                        return
+                    target.parentFile.mkdirs()
+                    def hash = obj.hash as String
+                    def url = "https://resources.download.minecraft.net/${hash.substring(0, 2)}/${hash}"
+                    try {
+                        new URL(url).withInputStream { ins -> target.withOutputStream { it << ins } }
+                        downloaded.incrementAndGet()
+                    } catch (Exception e) {
+                        failed.add("${path}: ${e.message}".toString())
+                    }
+                } as Runnable)
+            }
+            futures.each { it.get() }
+        } finally {
+            pool.shutdown()
+        }
+        if (!failed.isEmpty()) {
+            failed.take(5).each { logger.error("下载失败: ${it}") }
+            throw new GradleException("共 ${failed.size()} 个资产下载失败,可重跑本任务续传")
+        }
+        println "游戏资产就绪: 共 ${wanted.size()} 个文件(本次新下载 ${downloaded.get()} 个) → ${assetsDir}"
+    }
 }
 
 processResources {
