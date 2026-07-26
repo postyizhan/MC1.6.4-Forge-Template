@@ -55,7 +55,10 @@ minecraft {
         }
         register('server') {
             workingDir = file('runs/main/server/')
-            environment.put("tweakClass", "cpw.mods.fml.common.launcher.FMLTweaker")
+            // 服务端必须用 FMLServerTweaker:FMLTweaker 是客户端 tweaker,它的
+            // getLaunchTarget() 返回 net.minecraft.client.main.Main,会让 runServer
+            // 去启动客户端并在加载 LWJGL 本地库时报 UnsatisfiedLinkError。
+            environment.put("tweakClass", "cpw.mods.fml.common.launcher.FMLServerTweaker")
             jvmArgs "-Dfml.ignoreInvalidMinecraftCertificates=true"
             environment.put("mainClass", "dev.launchfix.CmeSafeLaunch")
         }
